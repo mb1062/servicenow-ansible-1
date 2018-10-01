@@ -1,0 +1,97 @@
+---
+- name: Patching server
+  hosts: all
+  become: yes
+
+  #vars:
+  #  service_now_num: 
+
+  tasks:
+    - name: Check for existent service now ref
+      debug:
+        msg: 'log to service now. Unauthorized change'
+      when: service_now_num is not defined
+      delegate_to: 127.0.0.1
+      run_once: true
+
+    - fail:
+        msg: 'Abort Playbook'
+      when: service_now_num is not defined
+      delegate_to: 127.0.0.1
+      run_once: true
+
+    - name: Patch server
+      block:
+        - ec2_metadata_facts:
+
+        - ec2_instance_facts:
+            region: "{{ ansible_ec2_placement_region }}"
+            instance_ids: "{{ ansible_ec2_instance_id }}"
+          delegate_to: 127.0.0.1
+          become: no
+          register: ec2_info
+
+        - name: Taking snapshot on /dev/sda1
+          ec2_snapshot:
+            region: "{{ ansible_ec2_placement_region }}"
+            instance_id: "{{ ansible_ec2_instance_id }}"
+            device_name: /dev/sda1
+            description: "snapshot of /dev/sda1 for {{ ansible_ec2_instance_id }}"
+          delegate_to: 127.0.0.1
+          become: no
+
+        - name: Ensure yum-utils is available
+          yum:
+            update_cache: yes
+            name: yum-utils
+            state: present
+
+        - name: Get the list of rpms before patching
+          shell: rpm -qa | sort
+          args:
+            warn: false
+          register: before_patch
+          
+        - name: Update server to latest 
+          yum:
+            name: '*'
+            state: latest
+            update_cache: yes
+          check_mode: yes
+          
+        - name: Get the list of rpms after Patching
+          shell: rpm -qa | sort
+          args:
+            warn: false
+          register: after_patch
+          
+        - name: Check for delta packages
+          gen_diff:
+            source: "{{ before_patch.stdout }}"
+            target: "{{ after_patch.stdout }}"
+            source_type: string
+            target_type: string
+          register: delta
+
+        - debug: msg="{{delta.diff.delta}}"
+
+        - name: Check if reboot is necessary.
+          command: needs-restarting -r
+          register: reboot_check
+          changed_when: false
+          failed_when: reboot_check.rc > 1
+
+        - name: Reboot the machine if necessary.
+          include_role:
+            name: reboot
+          when:
+            - reboot_check.rc == 1
+
+        - name: Update Service Now 
+          local_action: debug msg="updating service now with success info for each node"
+       
+      rescue:
+        - debug:
+            msg: 'create incident ticket failed node'
+      
+   
