@@ -364,11 +364,16 @@ def main():
     source = normalize_input(source, 'source', module)
     target = normalize_input(target, 'target', module)
 
+    diff_type = module.params.get('diff')
+
+    if diff_type == 'raw':
+        delta = '\n'.join(difflib.unified_diff(target.split('\n'), source.split('\n'), lineterm=''))
+
     # Ansible diff output
     diff = {
         'before': target,
         'after': source,
-        'unified_diff': '\n'.join(difflib.unified_diff(target.split('\n'), source.split('\n'), lineterm=''))
+        'delta': delta
     }
 
     # Did we have any changes?

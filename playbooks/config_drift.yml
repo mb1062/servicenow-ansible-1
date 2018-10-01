@@ -13,6 +13,6 @@
       register: out
 
     - block:
-        - debug: msg="{{out.diff.unified_diff}}"
-        
+        - debug: msg="{{out.diff.delta}}"
+
       when: out.changed
