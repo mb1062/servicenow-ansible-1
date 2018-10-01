@@ -57,7 +57,7 @@
             name: '*'
             state: latest
             update_cache: yes
-          check_mode: yes
+          #check_mode: yes
           
         - name: Get the list of rpms after Patching
           shell: rpm -qa | sort
