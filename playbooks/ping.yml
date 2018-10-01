@@ -1,0 +1,23 @@
+- name: Test connectivity
+  hosts: all
+  
+  tasks:
+    - name: get Linux whoami information
+      command: whoami
+      when: ansible_os_family != "Windows"
+      register: output
+
+    - name: Show Linux whoami information
+      debug:
+        msg: "{{ output.stdout }}"
+      when: ansible_os_family != "Windows"
+
+    - name: get Windows whoami information
+      win_whoami:
+      when: ansible_os_family == "Windows"
+      register: output
+
+    - name: Show Windows whoami information
+      debug:
+        msg: "{{ output.stdout }}"
+      when: ansible_os_family == "Windows"
