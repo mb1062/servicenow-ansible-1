@@ -1,0 +1,18 @@
+---
+- hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+    - name: Check for drift in httpd.conf
+      gen_diff:
+        source: "/etc/httpd/conf/httpd.conf"
+        target: "{{ lookup('template', 'templates/httpd.conf.j2') }}"
+        source_type: file
+        target_type: string
+      register: out
+
+    - block:
+        - debug: msg="{{out.diff.unified_diff}}"
+        
+      when: out.changed
