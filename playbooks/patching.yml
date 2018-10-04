@@ -1,44 +1,31 @@
 ---
 - name: Patching server
-  hosts: all
+  hosts: "{{ server_name }}"
   become: yes
 
   #vars:
   #  service_now_num: 
 
   tasks:
-    - name: Check for existent service now ref
-      debug:
-        msg: 'log to service now. Unauthorized change'
-      when: service_now_num is not defined
-      delegate_to: 127.0.0.1
-      run_once: true
-
-    - fail:
-        msg: 'Abort Playbook'
-      when: service_now_num is not defined
-      delegate_to: 127.0.0.1
-      run_once: true
-
     - name: Patch server
       block:
-        - ec2_metadata_facts:
-
-        - ec2_instance_facts:
-            region: "{{ ansible_ec2_placement_region }}"
-            instance_ids: "{{ ansible_ec2_instance_id }}"
-          delegate_to: 127.0.0.1
-          become: no
-          register: ec2_info
-
-        - name: Taking snapshot on /dev/sda1
-          ec2_snapshot:
-            region: "{{ ansible_ec2_placement_region }}"
-            instance_id: "{{ ansible_ec2_instance_id }}"
-            device_name: /dev/sda1
-            description: "snapshot of /dev/sda1 for {{ ansible_ec2_instance_id }}"
-          delegate_to: 127.0.0.1
-          become: no
+#        - ec2_metadata_facts:
+#
+#        - ec2_instance_facts:
+#            region: "{{ ansible_ec2_placement_region }}"
+#            instance_ids: "{{ ansible_ec2_instance_id }}"
+#          delegate_to: 127.0.0.1
+#          become: no
+#          register: ec2_info
+#
+#        - name: Taking snapshot on /dev/sda1
+#          ec2_snapshot:
+#            region: "{{ ansible_ec2_placement_region }}"
+#            instance_id: "{{ ansible_ec2_instance_id }}"
+#            device_name: /dev/sda1
+#            description: "snapshot of /dev/sda1 for {{ ansible_ec2_instance_id }}"
+#          delegate_to: 127.0.0.1
+#          become: no
 
         - name: Ensure yum-utils is available
           yum:
@@ -54,7 +41,7 @@
           
         - name: Update server to latest 
           yum:
-            name: '*'
+            name: "{{ pkg_name }}"
             state: latest
             update_cache: yes
           #check_mode: yes
@@ -67,8 +54,8 @@
           
         - name: Check for delta packages
           gen_diff:
-            source: "{{ before_patch.stdout }}"
-            target: "{{ after_patch.stdout }}"
+            source: "{{ after_patch.stdout }}"
+            target: "{{ before_patch.stdout }}"
             source_type: string
             target_type: string
           register: delta
@@ -87,11 +74,31 @@
           when:
             - reboot_check.rc == 1
 
-        - name: Update Service Now 
-          local_action: debug msg="updating service now with success info for each node"
-       
+        - name: POST Request
+          uri:
+            url: "https://{{ servicenow_instance }}.service-now.com/api/now/table/u_ansible_message_log"
+            method: POST
+            user: "{{ ansible_servicenow_user }}"
+            password: "{{ ansible_servicenow_password }}"
+            body:
+              u_status: "success"
+              u_action: "update_status"
+              u_job_id: "{{ tower_job_id }}"
+              u_comment: "Package difference:\n{{ delta.diff.delta }}"
+            status_code: 201
+            force_basic_auth: yes
+            body_format: json
       rescue:
-        - debug:
-            msg: 'create incident ticket failed node'
-      
-   
+        - name: POST Request
+          uri:
+            url: "https://{{ servicenow_instance }}.service-now.com/api/now/table/u_ansible_message_log"
+            method: POST
+            user: "{{ ansible_servicenow_user }}"
+            password: "{{ ansible_servicenow_password }}"
+            body:
+              u_status: "fail"
+              u_action: "update_status"
+              u_job_id: "{{ tower_job_id }}"
+            status_code: 201
+            force_basic_auth: yes
+            body_format: json

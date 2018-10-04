@@ -1,7 +1,7 @@
 ---
-- hosts: localhost
+- hosts: "{{ server_name }}"
   become: yes
-  gather_facts: no
+  gather_facts: yes
 
   tasks:
     - name: Check for drift in httpd.conf
@@ -13,21 +13,25 @@
       register: out
 
     - block:
-
         - name: Config diff 
           debug: msg="{{out.diff.delta}}"
 
-        - name: Log an incident ticket with Service Now
-          snow_record:
-            username: "{{ snow_username }}"
-            password: "{{ snow_password }}"
-            instance: "{{ snow_instance }}"
-            state: present
-            data:
-              short_description: "Config drift detected at {{ inventory_hostname }}"
+        - name: POST Request
+          uri:
+            url: "https://{{ servicenow_instance }}.service-now.com/api/now/table/em_event"
+            method: POST
+            user: "{{ ansible_servicenow_user }}"
+            password: "{{ ansible_servicenow_password }}"
+            body:
+              source: "Ansible Tower"
+              node: "{{ ansible_hostname }}"
+              type: "Ansible Events"
+              resource: "config driff"
+              description: "This is the configuration drift delta:\n{{ out.diff.delta }}"
               severity: 3
-              priority: 2
-              work_notes: "Here is the diff:\n {{out.diff.delta}}"  
+            status_code: 201
+            force_basic_auth: yes
+            body_format: json
           register: api
 
         - debug: msg="{{api}}"
