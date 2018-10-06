@@ -33,13 +33,30 @@
             name: yum-utils
             state: present
 
+        # For demo purposes: This is to ensure an older version
+        # can be installed
+        - name: Remove package
+          yum:
+            name: "{{ item }}"
+            state: absent
+          with_items:
+            - httpd
+            - httpd-tools
+          when: pkg_name == 'httpd'
+
+        - name: Install older package
+          yum:
+            name: httpd-2.4.6-67.el7
+            state: present
+          when: pkg_name == 'httpd'
+
         - name: Get the list of rpms before patching
           shell: rpm -qa | sort
           args:
             warn: false
           register: before_patch
           
-        - name: Update server to latest 
+        - name: Update package "{{ pkg_name }}" to latest 
           yum:
             name: "{{ pkg_name }}"
             state: latest
