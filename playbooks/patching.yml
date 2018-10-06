@@ -63,7 +63,7 @@
             update_cache: yes
           #check_mode: yes
           
-        - name: Get the list of rpms after Patching
+        - name: Get the list of rpms after patching
           shell: rpm -qa | sort
           args:
             warn: false
@@ -79,17 +79,36 @@
 
         - debug: msg="{{delta.diff.delta}}"
 
+        - name: Find the version of the package
+          shell: rpm -qi {{ pkg_name }}
+          args:
+            warn: false
+          register: pkg_version
+
+        - set_fact:
+            msg_str: "No update done. Package \"{{ pkg_name }}\" is the latest version.\n\n{{ pkg_version.stdout }}"
+          when: delta.diff.delta == ""
+
+        - set_fact:
+            msg_str: "Package difference(s):\n{{ delta.diff.delta }}"
+          when: delta.diff.delta != ""
+
+        - debug: msg="{{msg_str}}"
+
         - name: Check if reboot is necessary.
           command: needs-restarting -r
           register: reboot_check
           changed_when: false
           failed_when: reboot_check.rc > 1
 
-        - name: Reboot the machine if necessary.
-          include_role:
-            name: reboot
-          when:
-            - reboot_check.rc == 1
+        - debug: msg="This machine needs rebooting"
+          when: reboot_check.rc == 1
+
+        # - name: Reboot the machine if necessary.
+        #   include_role:
+        #     name: reboot
+        #   when:
+        #     - reboot_check.rc == 1
 
         - name: POST Request
           uri:
@@ -101,7 +120,7 @@
               u_status: "success"
               u_action: "update_status"
               u_job_id: "{{ tower_job_id }}"
-              u_comment: "Package difference:\n{{ delta.diff.delta }}"
+              u_comment: "{{ msg_str }}"
             status_code: 201
             force_basic_auth: yes
             body_format: json
