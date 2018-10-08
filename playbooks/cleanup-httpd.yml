@@ -1,0 +1,20 @@
+---
+- name: Revert back to older version of httpd
+  hosts: patch-servers
+  become: yes
+
+  tasks:
+    - name: Remove package
+      yum:
+        name: "{{ item }}"
+        state: absent
+      with_items:
+        - httpd
+        - httpd-tools
+      
+    - name: Install older package
+      yum:
+        name: httpd-2.4.6-67.el7
+        state: present
+      
+       
